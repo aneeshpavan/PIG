@@ -1,7 +1,7 @@
 import java.io.*;
 import java.util.*;
 
-public class load {
+public class preprocess {
     public static void main(String[] args) {
         String inputFilePath = "/home/askf2/eclipse-workspace/PIG/movies.txt";
         String outputFilePath = "/home/askf2/eclipse-workspace/PIG/movies.csv";
