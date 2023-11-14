@@ -1,0 +1,23 @@
+pig -x local
+-----
+data_limited = LIMIT data 10;
+DUMP data_limited;
+----
+AllLines = LOAD '/home/askf2/eclipse-workspace/PIG/movies.csv' USING PigStorage(',') AS (
+    productId: chararray,
+    userId: chararray,
+    profileName: chararray,
+    score: float,
+    helpfulness: chararray,
+    time: long,
+    summary: chararray,
+    text: chararray
+);
+----
+Words = FOREACH AllLines GENERATE FLATTEN(TOKENIZE(text)) AS word;
+GroupedWords = GROUP Words BY word;
+WordCounts = FOREACH GroupedWords GENERATE group AS word, COUNT(Words) AS count;
+SortedWordCounts = ORDER WordCounts BY count DESC;
+TopWordCounts = LIMIT SortedWordCounts 100;
+DUMP TopWordCounts;
+----
