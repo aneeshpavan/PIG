@@ -1,23 +1,42 @@
 pig -x local
------
-data_limited = LIMIT data 10;
-DUMP data_limited;
-----
-AllLines = LOAD '/home/askf2/eclipse-workspace/PIG/movies.csv' USING PigStorage(',') AS (
-    productId: chararray,
-    userId: chararray,
-    profileName: chararray,
-    score: float,
-    helpfulness: chararray,
-    time: long,
-    summary: chararray,
-    text: chararray
-);
-----
-Words = FOREACH AllLines GENERATE FLATTEN(TOKENIZE(text)) AS word;
-GroupedWords = GROUP Words BY word;
-WordCounts = FOREACH GroupedWords GENERATE group AS word, COUNT(Words) AS count;
-SortedWordCounts = ORDER WordCounts BY count DESC;
-TopWordCounts = LIMIT SortedWordCounts 100;
-DUMP TopWordCounts;
-----
+--------
+gzip -d movies.txt.gz 
+--------
+awk -F'\n' '{for(i=1; i<=NF; i++){ st=index($i,":"); $i = substr($i, st+2)}} 1' RS='\n\n' OFS='\t' movies.txt > movies_Edited.txt
+--------
+AllLines = LOAD 'movies_Edited.txt' Using PigStorage('\t') AS (productId: chararray, userId: chararray, profileName: chararray, helpfulness: chararray, score: float, time: int, summary: chararray, text: chararray);
+--------
+TextAnalytics = FOREACH AllLines GENERATE
+    text AS review_text,
+    SIZE(text) AS text_length;
+TotalReviews = GROUP TextAnalytics ALL;
+ReviewCount = FOREACH TotalReviews GENERATE COUNT(TextAnalytics) AS total_reviews;
+AvgLength = FOREACH TotalReviews GENERATE AVG(TextAnalytics.text_length) AS avg_review_length;
+DUMP ReviewCount;
+DUMP AvgLength;
+---------
+SummaryAnalytics = FOREACH AllLines GENERATE summary AS review_summary, (summary) AS summary_length;
+Words = FOREACH SummaryAnalytics GENERATE FLATTEN(TOKENIZE(review_summary)) AS word;
+WordCounts = GROUP Words BY word;
+WordFrequencies = FOREACH WordCounts GENERATE group AS word, COUNT(Words) AS frequency;
+TopWords = ORDER WordFrequencies BY frequency DESC;
+TopNWords = LIMIT TopWords 10; -- Change 10 to your desired top N words
+DUMP TopNWords;
+--------
+AllLinesFiltered = FILTER AllLines BY REGEX_EXTRACT(helpfulness, '^(\\d+)\\/(\\d+)$', 1) is not null;
+ProcessedLines1 = FOREACH AllLinesFiltered GENERATE productId, helpfulness;
+ProcessedLines2 = FOREACH AllLinesFiltered GENERATE productId, helpfulness, 
+    (DOUBLE)STRSPLIT(helpfulness, '/').$0 / (DOUBLE)STRSPLIT(helpfulness, '/').$1 as ratio;
+ProcessedLines3 = FILTER ProcessedLines2 BY ratio>= 0.8;
+GroupedLines = GROUP ProcessedLines3 BY productId;
+ProcessedLines4 = FOREACH GroupedLines GENERATE group AS productId, COUNT(ProcessedLines3) as countHelpfulness;
+SortedLines = ORDER ProcessedLines4 BY countHelpfulness DESC;
+LimitedLines = LIMIT SortedLines 10;
+DUMP LimitedLines;
+---------
+Lines = FOREACH AllLines GENERATE productId, score;
+FilteredLines = FILTER Lines by score <= 2.0;
+Grouped = GROUP FilteredLines by productId;
+ScoreCount = FOREACH Grouped GENERATE group AS productId, COUNT(FilteredLines .score) as scorescount;
+DUMP ScoreCount;
+
